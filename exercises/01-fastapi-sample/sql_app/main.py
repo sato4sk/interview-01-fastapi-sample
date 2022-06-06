@@ -87,6 +87,13 @@ def read_user(user_id: int, db: Session = Depends(get_db),
     return db_user
 
 
+@app.post("/users/{user_id}/delete", response_model=schemas.User)
+def delete_user(user_id: int, db: Session = Depends(get_db),
+                X_API_TOKEN: str = Header(None)):
+    _ = get_current_user(db, X_API_TOKEN)
+    return crud.delete_user(db, user_id)
+    
+
 @app.post("/users/{user_id}/items/", response_model=schemas.Item)
 def create_item_for_user(user_id: int, item: schemas.ItemCreate, 
                          db: Session = Depends(get_db),
