@@ -99,6 +99,10 @@ def create_item_for_user(user_id: int, item: schemas.ItemCreate,
                          db: Session = Depends(get_db),
                          X_API_TOKEN: str = Header(None)):
     _ = get_current_user(db, X_API_TOKEN)
+    user = crud.get_user(db, user_id)
+    if not user.is_active:
+        raise HTTPException(status_code=404, 
+                            detail="User is not active")
     return crud.create_user_item(db=db, item=item, user_id=user_id)
 
 
