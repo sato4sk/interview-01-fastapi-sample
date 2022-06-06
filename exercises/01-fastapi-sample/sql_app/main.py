@@ -102,3 +102,11 @@ def read_items(skip: int = 0, limit: int = 100,
     _ = get_current_user(db, X_API_TOKEN)
     items = crud.get_items(db, skip=skip, limit=limit)
     return items
+
+
+@app.get("/me/items", response_model=List[schemas.Item])
+def read_my_items(db: Session = Depends(get_db),
+                  X_API_TOKEN: str = Header(None)):
+    user = get_current_user(db, X_API_TOKEN)
+    items = crud.get_items_by_owner_id(db, owner_id=user.id)
+    return items
