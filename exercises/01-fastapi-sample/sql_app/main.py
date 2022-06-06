@@ -1,9 +1,9 @@
 from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
-from . import crud, models, schemas
+from . import auth, crud, models, schemas
 from .database import SessionLocal, engine
 
 models.Base.metadata.create_all(bind=engine)
@@ -20,12 +20,42 @@ def get_db():
         db.close()
 
 
+def get_current_user(db: Session, token: str):
+    """トークンの認証とユーザーの取得"""
+    if token is None:
+        raise HTTPException(status_code=404, 
+                            detail="X-API-TOKEN is None")
+
+    user = auth.authenticate_user_by_token(db, token)
+    if user is None:
+        raise HTTPException(status_code=404, 
+                            detail="User is not authenticated")
+    if not user.is_active:
+        raise HTTPException(status_code=404, 
+                    detail="User is not active")
+    return user
+
+
 @app.get("/health-check")
 def health_check(db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 
-@app.post("/users/", response_model=schemas.User)
+@app.get("/login/")
+def login(email: str, password: str, db: Session = Depends(get_db)):
+    user = auth.authenticate_user(db, email, password)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password")
+    if not user.is_active:
+        raise HTTPException(status_code=404, 
+                            detail="User is not active")
+
+    token = auth.create_user_token(user.id)
+    return {"login_status": "success", "X-API-TOKEN": token}
+
+
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_email(db, email=user.email)
     if db_user:
