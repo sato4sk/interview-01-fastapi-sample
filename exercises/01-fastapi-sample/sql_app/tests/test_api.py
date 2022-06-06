@@ -96,3 +96,25 @@ def test_get_user(test_db, client):
     data = response.json()
     assert data["email"] == "deadpool@example.com"
     assert data["id"] == user_id
+
+def test_read_my_items(test_db, client):
+    user_res = create_testuser(client)
+    user_data = user_res.json()
+    user_id = user_data['user']['id']
+    token = user_data['X-API-TOKEN']
+    create_testitem(client, user_id, token)
+
+    # 該当ユーザー外のitem追加
+    create_testuser(
+        client, email="dummy@", password="dummypass")
+    create_testitem(
+        client, 2, token, title="dummy_item", desc="dummy")
+
+    item_res = client.get(
+        f"/me/items", headers={'X-API-TOKEN': token})
+    data = item_res.json()
+    assert item_res.status_code == 200
+    assert len(data) == 1
+    assert data[0]['title'] == 'item1'
+    assert data[0]['description'] == 'item1_desc'
+
