@@ -118,3 +118,58 @@ def test_read_my_items(test_db, client):
     assert data[0]['title'] == 'item1'
     assert data[0]['description'] == 'item1_desc'
 
+def test_delete_user(test_db, client):
+    user_res = create_testuser(client)
+    user_data = user_res.json()
+    user_id = user_data['user']['id']
+    token = user_data['X-API-TOKEN']
+    create_testitem(client, user_id, token)
+
+    # 削除ユーザーとitem追加
+    del_user_res = create_testuser(
+        client, email="deluser@", password="deluserpass")
+    del_user_data = del_user_res.json()
+    del_user_id = del_user_data['user']['id']
+    del_user_token = del_user_data['X-API-TOKEN']
+    create_testitem(
+        client, del_user_id, del_user_token, 
+        title="dummy_item", desc="dummy")
+
+    # item移管先の確認用の3rd user
+    create_testuser(
+        client, email="3rd_user@", password="3rd")
+
+    # ユーザー削除
+    delete_res = client.post(
+        f"/users/{del_user_id}/delete", 
+        headers={'X-API-TOKEN': token})
+    assert delete_res.status_code == 200
+    deleted_user = delete_res.json()
+
+    assert deleted_user['id'] == del_user_id
+    assert deleted_user['is_active'] == False
+
+    # 1stユーザーへのitem移管確認
+    item_res = client.get(
+        f"/me/items", headers={'X-API-TOKEN': token})
+    items = item_res.json()
+    titles = [iitem['title'] for iitem in items]
+    assert user_id == 1
+    assert len(items) == 2
+    assert sorted(titles) == sorted(['dummy_item', 'item1'])
+
+    # 削除ユーザーでのログイン不可
+    fail_login_res = client.get(
+        "/login/",
+        params={"email": "deluser@", "password": "deluserpass"}
+    )
+    assert fail_login_res.status_code == 404
+
+    # 削除ユーザーのトークン無効
+    fail_token_res = client.get(
+        f"/health-check", headers={'X-API-TOKEN': del_user_token})
+    assert fail_token_res.status_code == 404
+
+    # 削除ユーザーへのitem追加不可
+    fail_itemcreate_res = create_testitem(client, del_user_id, token)
+    assert fail_itemcreate_res.status_code == 404
